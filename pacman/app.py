@@ -22,8 +22,7 @@ DBHOST = os.getenv('DBHOST')
 DBUSER = os.getenv('DBUSER')
 DBPASS = os.getenv('DBPASS')
 DB = os.getenv('DB')
-db = mysql.connector.connect(user=DBUSER, host=DBHOST, password=DBPASS, database=DB)
-cur = db.cursor()
+
 
 # file extensions to trigger on
 _SUPPORTED_EXTENSIONS = (
@@ -33,6 +32,8 @@ _SUPPORTED_EXTENSIONS = (
 # ingestor lambda function
 @app.on_s3_event(bucket=S3_BUCKET, events=['s3:ObjectCreated:*'])
 def s3_handler(event):
+  db = mysql.connector.connect(user=DBUSER, host=DBHOST, password=DBPASS, database=DB)
+  cur = db.cursor()
   if _is_json(event.key):
     # get the file, read it, load it into JSON as an object
     response = s3.get_object(Bucket=S3_BUCKET, Key=event.key)
@@ -75,6 +76,10 @@ def s3_handler(event):
       db.rollback()
       cur.close()
       db.close()
+    finally:
+            # Always close cursor and db connection after use
+            cur.close()
+            db.close()
 
 # perform a suffix match against supported extensions
 def _is_json(key):
