@@ -4,8 +4,9 @@ import mysql.connector
 import boto3
 from chalice import Chalice
 
-app = Chalice(app_name='backend')
+app = Chalice(app_name='pacman')
 app.debug = True
+
 
 # s3 things
 ## UPDATE NEXT LINE
@@ -18,11 +19,12 @@ baseurl = 'http://sae3gg-dp1-spotify.s3-website-us-east-1.amazonaws.com/'
 
 # database things
 DBHOST = os.getenv('DBHOST')
+
 DBUSER = os.getenv('DBUSER')
 DBPASS = os.getenv('DBPASS')
 DB = os.getenv('DB')
-db = mysql.connector.connect(user=DBUSER, host=DBHOST, password=DBPASS, database=DB)
-cur = db.cursor()
+#db = mysql.connector.connect(user=DBUSER, host=DBHOST, password=DBPASS, database=DB)
+#cur = db.cursor()
 
 # file extensions to trigger on
 _SUPPORTED_EXTENSIONS = (
@@ -43,7 +45,7 @@ def s3_handler(event):
     ALBUM = data.get('album', 'Unknown Album')
     ARTIST = data.get('artist', 'Unknown Artist')
     YEAR = data.get('year', 0)
-    GENRE = ('genre', 'Unknown Genre')
+    GENRE = data.get('genre', 'Unknown Genre')
 
     # get the unique ID for the bundle to build the mp3 and jpg urls
     # you get 5 data points in each new JSON file that arrives, but
@@ -60,14 +62,25 @@ def s3_handler(event):
 
     # try to insert the song into the database
     try:
-      add_song = ("INSERT INTO songs "
-               "(title, album, artist, year, file, image, genre) "
-               "VALUES (%s, %s, %s, %s, %s, %s, %s)")
-      song_vals = (TITLE, ALBUM, ARTIST, YEAR, MP3, IMG, GENRE)
-      cur.execute(add_song, song_vals)
-      db.commit()
-      cur.close()
-      db.close()
+        # Use a fresh connection and cursor for each Lambda invocation
+        with mysql.connector.connect(
+            user=DBUSER,
+            host=DBHOST,
+            password=DBPASS,
+            database=DB,
+            connection_timeout=300  # Ensure the connection does not timeout
+        ) as db:
+            # Using the connection's cursor in a with block to ensure proper closing
+            with db.cursor() as cur:
+                add_song = (
+                    "INSERT INTO songs "
+                    "(title, album, artist, year, file, image, genre) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                )
+                song_vals = (TITLE, ALBUM, ARTIST, YEAR, MP3, IMG, GENRE)
+                cur.execute(add_song, song_vals)
+                db.commit()
+                app.log.debug("Song inserted successfully into the database")
 
     except mysql.connector.Error as err:
       app.log.error("Failed to insert song: %s", err)
