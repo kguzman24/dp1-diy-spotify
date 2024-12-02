@@ -15,9 +15,9 @@ s3 = boto3.client('s3')
 
 # base URL for accessing the files
 ## UPDATE NEXT LINE
-baseurl = 'http://sae3gg-dp1-spotify.s3-website-us-east-1.amazonaws.com/'
 
- # database things
+#link in FAQs
+baseurl = 'https://sae3gg-dp1-spotify.s3.us-east-1.amazonaws.com/'
 DBHOST = os.getenv('DBHOST')
 DBUSER = os.getenv('DBUSER')
 DBPASS = os.getenv('DBPASS')
@@ -32,14 +32,9 @@ _SUPPORTED_EXTENSIONS = (
 # ingestor lambda function
 @app.on_s3_event(bucket=S3_BUCKET, events=['s3:ObjectCreated:*'])
 def s3_handler(event):
-  try:
-      db = mysql.connector.connect(user=DBUSER, host=DBHOST, password=DBPASS, database=DB)
-      cur = db.cursor()
-      app.log.debug("MySQL connection established.")
-  except mysql.connector.Error as e:
-      app.log.error("MySQL connection failed: %s", e)
-      return  # exit the function if db connection fails
   if _is_json(event.key):
+    db = mysql.connector.connect(user=DBUSER, host=DBHOST, password=DBPASS, database=DB)
+    cur = db.cursor()
     # get the file, read it, load it into JSON as an object
     response = s3.get_object(Bucket=S3_BUCKET, Key=event.key)
     text = response["Body"].read().decode()
